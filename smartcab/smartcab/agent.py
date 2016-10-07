@@ -10,28 +10,59 @@ class LearningAgent(Agent):
         super(LearningAgent, self).__init__(env)  # sets self.env = env, state = None, next_waypoint = None, and a default color
         self.color = 'red'  # override color
         self.planner = RoutePlanner(self.env, self)  # simple route planner to get next_waypoint
-        # TODO: Initialize any additional variables here
 
+        self.qtable = {"state_0":{}, "state_1":{}, "state_2":{}, "state_3":{}, "state_4":{}}
+        self.q_update_table = self.qtable
+        self.alpha = 0.5
+        self.gamma = 0.5
+
+        # TODO: Q(state, action) = (1 - alpha(time)) * Q(state, action) + alpha(time) * (r + gamma * Q(next_state, next_action))
+
+
+        # TODO: Initialize any additional variables here
+        self.next_waypoint = None
+        self.state = [0, 0]
     def reset(self, destination=None):
         self.planner.route_to(destination)
         # TODO: Prepare for a new trip; reset any variables here, if required
+        self.next_waypoint = None
+        self.state = [0, 0]
 
     def update(self, t):
         # Gather inputs
+
         self.next_waypoint = self.planner.next_waypoint()  # from route planner, also displayed by simulator
+        print self.next_waypoint
         inputs = self.env.sense(self)
         deadline = self.env.get_deadline(self)
+        heading = self.env.agent_states[self]['heading']
+        location = self.env.agent_states[self]['location']
+
+        # TODO: Select action according to your policy
+        action, new_heading = self.env.q_table.next_move(location, heading)
 
         # TODO: Update state
-        
-        # TODO: Select action according to your policy
-        action = None
+        action_okay = True
+        if action == 'right':
+            if inputs['light'] == 'red' and inputs['left'] == 'forward':
+                action_okay = False
+        elif action == 'forward':
+            if inputs['light'] == 'red':
+                action_okay = False
+        elif action == 'left':
+            if inputs['light'] == 'red' or (inputs['oncoming'] == 'forward' or inputs['oncoming'] == 'right'):
+                action_okay = False
 
-        # Execute action and get reward
-        reward = self.env.act(self, action)
+        if not action_okay:
+            action = None
 
         # TODO: Learn policy based on state, action, reward
+        reward = self.env.act(self, action)
+        self.env.q_table.update(location, new_heading, reward, alpha=0.5, gamma=0.8)
 
+        if action:
+            self.state[0] += 1
+            self.state[1] += reward
         print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
 
 
@@ -45,7 +76,7 @@ def run():
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
     # Now simulate it
-    sim = Simulator(e, update_delay=0.5, display=True)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=.05, display=True)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
     sim.run(n_trials=100)  # run for a specified number of trials
