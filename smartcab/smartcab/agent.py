@@ -11,11 +11,6 @@ class LearningAgent(Agent):
         self.color = 'red'  # override color
         self.planner = RoutePlanner(self.env, self)  # simple route planner to get next_waypoint
 
-        self.qtable = {"state_0":{}, "state_1":{}, "state_2":{}, "state_3":{}, "state_4":{}}
-        self.q_update_table = self.qtable
-        self.alpha = 0.5
-        self.gamma = 0.5
-
         # TODO: Q(state, action) = (1 - alpha(time)) * Q(state, action) + alpha(time) * (r + gamma * Q(next_state, next_action))
 
 
@@ -32,14 +27,14 @@ class LearningAgent(Agent):
         # Gather inputs
 
         self.next_waypoint = self.planner.next_waypoint()  # from route planner, also displayed by simulator
-        print self.next_waypoint
+        print self.env.q_table.q_vals
         inputs = self.env.sense(self)
         deadline = self.env.get_deadline(self)
         heading = self.env.agent_states[self]['heading']
-        location = self.env.agent_states[self]['location']
+        loc_x, loc_y = self.env.agent_states[self]['location']
 
         # TODO: Select action according to your policy
-        action, new_heading = self.env.q_table.next_move(location, heading)
+        action, new_heading = self.env.q_table.next_move(loc_y, loc_x, heading)
 
         # TODO: Update state
         action_okay = True
@@ -58,7 +53,7 @@ class LearningAgent(Agent):
 
         # TODO: Learn policy based on state, action, reward
         reward = self.env.act(self, action)
-        self.env.q_table.update(location, new_heading, reward, alpha=0.5, gamma=0.8)
+        self.env.q_table.update(loc_y, loc_x, new_heading, reward, alpha=0.5, gamma=0.8)
 
         if action:
             self.state[0] += 1
@@ -76,7 +71,7 @@ def run():
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
     # Now simulate it
-    sim = Simulator(e, update_delay=.05, display=True)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=0.05, display=True)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
     sim.run(n_trials=100)  # run for a specified number of trials

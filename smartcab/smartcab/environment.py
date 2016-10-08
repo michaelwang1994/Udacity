@@ -1,4 +1,5 @@
 import time
+import numpy as np
 import random
 from collections import OrderedDict
 
@@ -46,7 +47,7 @@ class Environment(object):
         self.block_size = 100
         self.intersections = OrderedDict()
         self.roads = []
-        self.q_table = Q_table(self)
+        self.q_table = QTable(self)
         for x in xrange(self.bounds[0], self.bounds[2] + 1):
             for y in xrange(self.bounds[1], self.bounds[3] + 1):
                 self.intersections[(x, y)] = TrafficLight()  # a traffic light at each intersection
@@ -274,28 +275,27 @@ class DummyAgent(Agent):
         #print "DummyAgent.update(): t = {}, inputs = {}, action = {}, reward = {}".format(t, inputs, action, reward)  # [debug]
         #print "DummyAgent.update(): next_waypoint = {}".format(self.next_waypoint)  # [debug]
 
-class Q_table(object):
+class QTable(object):
     def __init__(self, env):
         self.env = env
-        self.q_vals = {}
         self.heading_direction = {(1, 0): 'e', (0, 1): 's', (-1, 0): 'w', (0, -1): 'n'}
         self.direction_heading = {'e': (1, 0), 's': (0, 1), 'w': (-1, 0), 'n': (0, -1)}
-        for col in range(1, self.env.grid_size[0] + 1):
-            for row in range(1, self.env.grid_size[1] + 1):
-                self.q_vals[(col, row)] = {'s': 0, 'n': 0, 'e': 0, 'w': 0}
+        self.q_vals = np.tile({'s': 0, 'n': 0, 'e': 0, 'w': 0}, self.env.grid_size[0]*self.env.grid_size[1])
+        self.q_vals = self.q_vals.reshape(self.env.grid_size[1], self.env.grid_size[0])
 
-    def update(self, prev_loc, heading, reward, alpha = 0.75, gamma = 0.75):
-        curr_loc = self.env.agent_states[self.env.primary_agent]['location']
+    def update(self, prev_y, prev_x, heading, reward, alpha = 0.8, gamma = 0.8):
+        curr_x, curr_y = self.env.agent_states[self.env.primary_agent]['location']
         direction = self.heading_direction[heading]
-        self.q_vals[prev_loc][direction] = alpha * (reward + gamma * max(self.q_vals[curr_loc].values())) + \
-                                           (1 - alpha) * self.q_vals[prev_loc][direction]
+        self.q_vals[prev_y - 1, prev_x - 1][direction] = alpha * (reward + gamma * max(self.q_vals[curr_y - 1, curr_x - 1].values())) + \
+                                           (1 - alpha) * self.q_vals[prev_y - 1, prev_x - 1][direction]
 
-    def next_move(self, location, heading):
-        Qs = self.q_vals[location].copy()
+    def next_move(self, loc_y, loc_x, heading):
+        Qs = self.q_vals[loc_y - 1, loc_x - 1].copy()
         forbidden_move = self.heading_direction[(-heading[0], -heading[1])]
         del Qs[forbidden_move]
         maxQ = max(Qs.values())
         good_moves = [m for m, v in Qs.items() if v == maxQ]
+        print good_moves
         direction = random.choice(good_moves)
         new_heading = self.direction_heading[direction]
         if heading == new_heading:
