@@ -277,34 +277,42 @@ class DummyAgent(Agent):
 
 class QTable(object):
     def __init__(self, env):
-        # TODO: Change all of states to use light, location of the destination, and the time until deadline
 
+        # TODO: add GLIE to Q-Learning
         self.env = env
         self.heading_direction = {(1, 0): 'e', (0, 1): 's', (-1, 0): 'w', (0, -1): 'n'}
         self.direction_heading = {'e': (1, 0), 's': (0, 1), 'w': (-1, 0), 'n': (0, -1)}
 
         w, h = self.env.grid_size
 
+        # Use *2 because the states are the distances between the cab and the destination
         self.q_vals_empty = []
-        for col in range(w):
-            for row in range(h):
+        for col in range(w * 2):
+            for row in range(h * 2):
                 self.q_vals_empty.append({'e':0, 's':0, 'w':0, 'n':0})
 
-        self.q_vals_empty = np.array(self.q_vals_empty).reshape((h, w))
+        self.q_vals_empty = np.array(self.q_vals_empty).reshape((h * 2, w * 2))
         self.q_vals = self.q_vals_empty
 
         # self.q_vals = self.q_vals_empty.reshape((self.env.grid_size[1], self.env.grid_size[0]))
 
     def update(self, prev_y, prev_x, heading, reward, alpha = 0.8, gamma = 0.8):
-        curr_x, curr_y = self.env.agent_states[self.env.primary_agent]['location']
+        (dest_x, dest_y) = self.env.agent_states[self.env.primary_agent]['destination']
+        (curr_x, curr_y) = self.env.agent_states[self.env.primary_agent]['location']
+
+        state = (dest_y - prev_y + 6, dest_x - prev_x + 6)
+        state1 = (dest_y - curr_y + 6, dest_x - curr_x + 6)
+
         direction = self.heading_direction[heading]
-        q_s_a = self.q_vals[prev_y - 1, prev_x - 1][direction]
-        q_s1_a1 = self.q_vals[curr_y - 1, curr_x - 1].values()
+        q_s_a = self.q_vals[state[0] - 1, state[1] - 1][direction]
+        q_s1_a1 = self.q_vals[state1[0] - 1, state1[1] - 1].values()
         q_s_a = alpha * (reward + gamma * max(q_s1_a1)) + (1 - alpha) * q_s_a
-        self.q_vals[prev_y - 1, prev_x - 1][direction] = q_s_a
+        self.q_vals[state[0] - 1, state[1] - 1][direction] = q_s_a
 
     def next_move(self, loc_y, loc_x, heading):
-        Qs = self.q_vals[loc_y - 1, loc_x - 1].copy()
+        (dest_x, dest_y) = self.env.agent_states[self.env.primary_agent]['destination']
+        state = (dest_y - loc_y + 6, dest_x - loc_x + 6)
+        Qs = self.q_vals[state[0] - 1, state[1] - 1].copy()
         forbidden_move = self.heading_direction[(-heading[0], -heading[1])]
         del Qs[forbidden_move]
         maxQ = max(Qs.values())
