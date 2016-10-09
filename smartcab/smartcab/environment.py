@@ -277,17 +277,31 @@ class DummyAgent(Agent):
 
 class QTable(object):
     def __init__(self, env):
+        # TODO: Change all of states to use light, location of the destination, and the time until deadline
+
         self.env = env
         self.heading_direction = {(1, 0): 'e', (0, 1): 's', (-1, 0): 'w', (0, -1): 'n'}
         self.direction_heading = {'e': (1, 0), 's': (0, 1), 'w': (-1, 0), 'n': (0, -1)}
-        self.q_vals = np.tile({'s': 0, 'n': 0, 'e': 0, 'w': 0}, self.env.grid_size[0]*self.env.grid_size[1])
-        self.q_vals = self.q_vals.reshape(self.env.grid_size[1], self.env.grid_size[0])
+
+        w, h = self.env.grid_size
+
+        self.q_vals_empty = []
+        for col in range(w):
+            for row in range(h):
+                self.q_vals_empty.append({'e':0, 's':0, 'w':0, 'n':0})
+
+        self.q_vals_empty = np.array(self.q_vals_empty).reshape((h, w))
+        self.q_vals = self.q_vals_empty
+
+        # self.q_vals = self.q_vals_empty.reshape((self.env.grid_size[1], self.env.grid_size[0]))
 
     def update(self, prev_y, prev_x, heading, reward, alpha = 0.8, gamma = 0.8):
         curr_x, curr_y = self.env.agent_states[self.env.primary_agent]['location']
         direction = self.heading_direction[heading]
-        self.q_vals[prev_y - 1, prev_x - 1][direction] = alpha * (reward + gamma * max(self.q_vals[curr_y - 1, curr_x - 1].values())) + \
-                                           (1 - alpha) * self.q_vals[prev_y - 1, prev_x - 1][direction]
+        q_s_a = self.q_vals[prev_y - 1, prev_x - 1][direction]
+        q_s1_a1 = self.q_vals[curr_y - 1, curr_x - 1].values()
+        q_s_a = alpha * (reward + gamma * max(q_s1_a1)) + (1 - alpha) * q_s_a
+        self.q_vals[prev_y - 1, prev_x - 1][direction] = q_s_a
 
     def next_move(self, loc_y, loc_x, heading):
         Qs = self.q_vals[loc_y - 1, loc_x - 1].copy()
@@ -295,7 +309,7 @@ class QTable(object):
         del Qs[forbidden_move]
         maxQ = max(Qs.values())
         good_moves = [m for m, v in Qs.items() if v == maxQ]
-        print good_moves
+        # print good_moves
         direction = random.choice(good_moves)
         new_heading = self.direction_heading[direction]
         if heading == new_heading:
