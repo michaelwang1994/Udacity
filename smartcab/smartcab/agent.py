@@ -31,7 +31,7 @@ class LearningAgent(Agent):
         loc_x, loc_y = self.env.agent_states[self]['location']
 
         # TODO: Select action according to your policy
-        action, new_heading = self.env.q_table.next_move(loc_y, loc_x, heading)
+        action, new_heading = self.env.q_table.next_move(loc_y, loc_x, heading, epsilon = .0)
 
         # TODO: Update state
         action_okay = True
@@ -50,7 +50,7 @@ class LearningAgent(Agent):
 
         # TODO: Learn policy based on state, action, reward
         reward = self.env.act(self, action)
-        self.env.q_table.update(loc_y, loc_x, new_heading, reward, alpha = 0.5, gamma = 0.5)
+        self.env.q_table.update(loc_y, loc_x, new_heading, reward, alpha = 0.1, gamma = 0.7)
 
         if action:
             self.state[0] += 1
@@ -67,7 +67,7 @@ def run():
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
     # Now simulate it
-    sim = Simulator(e, update_delay=0.5, display=True)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=0.0, display=False)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
     sim.run(n_trials=100)  # run for a specified number of trials

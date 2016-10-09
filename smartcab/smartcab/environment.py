@@ -34,7 +34,8 @@ class Environment(object):
 
     def __init__(self, num_dummies=3):
         self.num_dummies = num_dummies  # no. of dummy agents
-        
+        self.score = []
+        self.time_used = []
         # Initialize simulation variables
         self.done = False
         self.t = 0
@@ -95,6 +96,7 @@ class Environment(object):
 
         start_heading = random.choice(self.valid_headings)
         deadline = self.compute_dist(start, destination) * 5
+        self.total_deadline = deadline
         print "Environment.reset(): Trial set up with start = {}, destination = {}, deadline = {}".format(start, destination, deadline)
 
         # Initialize agent(s)
@@ -125,9 +127,17 @@ class Environment(object):
             if agent_deadline <= self.hard_time_limit:
                 self.done = True
                 print "Environment.step(): Primary agent hit hard time limit ({})! Trial aborted.".format(self.hard_time_limit)
+                self.score.append(0.0)
+                self.time_used.append(1.0)
+                print "success rate is: %s" % np.mean(self.score)
+                print "Average percent time used is: %s " % np.mean(self.time_used)
             elif self.enforce_deadline and agent_deadline <= 0:
                 self.done = True
                 print "Environment.step(): Primary agent ran out of time! Trial aborted."
+                self.score.append(0.0)
+                self.time_used.append(1.0)
+                print "success rate and is: %s" % np.mean(self.score)
+                print "Average percent time used is: %s" % np.mean(self.time_used)
             self.agent_states[self.primary_agent]['deadline'] = agent_deadline - 1
 
         self.t += 1
@@ -213,6 +223,10 @@ class Environment(object):
                     reward += 10  # bonus
                 self.done = True
                 print "Environment.act(): Primary agent has reached destination!"  # [debug]
+                self.score.append(1.0)
+                self.time_used.append((self.t) / self.total_deadline)
+                print "success rate is: %s" % np.mean(self.score)
+                print "Average percent time used is: %s " % np.mean(self.time_used)
             self.status_text = "state: {}\naction: {}\nreward: {}".format(agent.get_state(), action, reward)
             #print "Environment.act() [POST]: location: {}, heading: {}, action: {}, reward: {}".format(location, heading, action, reward)  # [debug]
 
@@ -278,7 +292,6 @@ class DummyAgent(Agent):
 class QTable(object):
     def __init__(self, env):
 
-        # TODO: add GLIE to Q-Learning
         self.env = env
         self.heading_direction = {(1, 0): 'e', (0, 1): 's', (-1, 0): 'w', (0, -1): 'n'}
         self.direction_heading = {'e': (1, 0), 's': (0, 1), 'w': (-1, 0), 'n': (0, -1)}
@@ -294,8 +307,6 @@ class QTable(object):
         self.q_vals_empty = np.array(self.q_vals_empty).reshape((h * 2, w * 2))
         self.q_vals = self.q_vals_empty
 
-        # self.q_vals = self.q_vals_empty.reshape((self.env.grid_size[1], self.env.grid_size[0]))
-
     def update(self, prev_y, prev_x, heading, reward, alpha = 0.8, gamma = 0.8):
         (dest_x, dest_y) = self.env.agent_states[self.env.primary_agent]['destination']
         (curr_x, curr_y) = self.env.agent_states[self.env.primary_agent]['location']
@@ -309,21 +320,34 @@ class QTable(object):
         q_s_a = alpha * (reward + gamma * max(q_s1_a1)) + (1 - alpha) * q_s_a
         self.q_vals[state[0] - 1, state[1] - 1][direction] = q_s_a
 
-    def next_move(self, loc_y, loc_x, heading):
-        (dest_x, dest_y) = self.env.agent_states[self.env.primary_agent]['destination']
-        state = (dest_y - loc_y + 6, dest_x - loc_x + 6)
-        Qs = self.q_vals[state[0] - 1, state[1] - 1].copy()
-        forbidden_move = self.heading_direction[(-heading[0], -heading[1])]
-        del Qs[forbidden_move]
-        maxQ = max(Qs.values())
-        good_moves = [m for m, v in Qs.items() if v == maxQ]
-        # print good_moves
-        direction = random.choice(good_moves)
-        new_heading = self.direction_heading[direction]
-        if heading == new_heading:
-            action = 'forward'
-        elif (-heading[1], heading[0]) == new_heading:
-            action = 'right'
+    def next_move(self, loc_y, loc_x, heading, epsilon = .05):
+
+        if random.random() < epsilon:
+            direction = random.choice(['e', 's', 'w', 'n'])
+            new_heading = self.direction_heading[direction]
+            if heading == new_heading:
+                action = 'forward'
+            elif (-heading[1], heading[0]) == new_heading:
+                action = 'right'
+            else:
+                action = 'left'
+            return (action, new_heading)
+
         else:
-            action = 'left'
-        return (action, new_heading)
+            (dest_x, dest_y) = self.env.agent_states[self.env.primary_agent]['destination']
+            state = (dest_y - loc_y + 6, dest_x - loc_x + 6)
+            Qs = self.q_vals[state[0] - 1, state[1] - 1].copy()
+            forbidden_move = self.heading_direction[(-heading[0], -heading[1])]
+            del Qs[forbidden_move]
+            maxQ = max(Qs.values())
+            good_moves = [m for m, v in Qs.items() if v == maxQ]
+            # print good_moves
+            direction = random.choice(good_moves)
+            new_heading = self.direction_heading[direction]
+            if heading == new_heading:
+                action = 'forward'
+            elif (-heading[1], heading[0]) == new_heading:
+                action = 'right'
+            else:
+                action = 'left'
+            return (action, new_heading)
