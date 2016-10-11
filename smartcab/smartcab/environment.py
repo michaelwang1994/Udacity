@@ -293,34 +293,46 @@ class QTable(object):
     def __init__(self, env):
 
         self.env = env
+        self.lights = ['green', 'red']
+        self.oncoming = ['left', 'forward', 'right', None]
+        self.left = ['left', 'forward', 'right', None]
+        self.right = ['left', 'forward', 'right', None]
+        w, h = self.env.grid_size
+        self.col = np.arange(-w, w, 1)
+        self.row = np.arange(-h, h, 1)
         self.heading_direction = {(1, 0): 'e', (0, 1): 's', (-1, 0): 'w', (0, -1): 'n'}
         self.direction_heading = {'e': (1, 0), 's': (0, 1), 'w': (-1, 0), 'n': (0, -1)}
 
-        w, h = self.env.grid_size
 
-        # Use *2 because the states are the distances between the cab and the destination
-        self.q_vals_empty = []
-        for col in range(w * 2):
-            for row in range(h * 2):
-                self.q_vals_empty.append({'e':0, 's':0, 'w':0, 'n':0})
+        #TODO: {'light': light, 'oncoming': oncoming, 'left': left, 'right': right}
+        self.q_vals_empty = {}
 
-        self.q_vals_empty = np.array(self.q_vals_empty).reshape((h * 2, w * 2))
+        for row in self.row:
+            for col in self.col:
+                for light in self.lights:
+                    for oncoming in self.oncoming:
+                        for left in self.left:
+                            for right in self.right:
+                                self.q_vals_empty[(light, oncoming, left, right, col, row)] = {'e': 0, 's': 0, 'w': 0, 'n': 0}
+
         self.q_vals = self.q_vals_empty
 
-    def update(self, prev_y, prev_x, heading, reward, alpha = 0.8, gamma = 0.8):
-        (dest_x, dest_y) = self.env.agent_states[self.env.primary_agent]['destination']
-        (curr_x, curr_y) = self.env.agent_states[self.env.primary_agent]['location']
+    def update(self, location, inputs, inputs1, heading, reward, alpha = 0.8, gamma = 0.8):
+        col = location[0] - self.env.agent_states[self.env.primary_agent]['destination'][0]
+        row = location[1] - self.env.agent_states[self.env.primary_agent]['destination'][1]
 
-        state = (dest_y - prev_y + 6, dest_x - prev_x + 6)
-        state1 = (dest_y - curr_y + 6, dest_x - curr_x + 6)
+        state = (inputs['light'], inputs['oncoming'], inputs['left'], inputs['right'], col, row)
+        state1 = (inputs1['light'], inputs1['oncoming'], inputs1['left'], inputs1['right'], col, row)
 
         direction = self.heading_direction[heading]
-        q_s_a = self.q_vals[state[0] - 1, state[1] - 1][direction]
-        q_s1_a1 = self.q_vals[state1[0] - 1, state1[1] - 1].values()
+        q_s_a = self.q_vals[state][direction]
+        q_s1_a1 = self.q_vals[state1].values()
         q_s_a = alpha * (reward + gamma * max(q_s1_a1)) + (1 - alpha) * q_s_a
-        self.q_vals[state[0] - 1, state[1] - 1][direction] = q_s_a
+        self.q_vals[state][direction] = q_s_a
 
-    def next_move(self, loc_y, loc_x, heading, epsilon = .05):
+    def next_move(self, location, inputs, heading, epsilon = .05):
+        col = location[0] - self.env.agent_states[self.env.primary_agent]['destination'][0]
+        row = location[1] - self.env.agent_states[self.env.primary_agent]['destination'][1]
 
         if random.random() < epsilon:
             direction = random.choice(['e', 's', 'w', 'n'])
@@ -334,9 +346,8 @@ class QTable(object):
             return (action, new_heading)
 
         else:
-            (dest_x, dest_y) = self.env.agent_states[self.env.primary_agent]['destination']
-            state = (dest_y - loc_y + 6, dest_x - loc_x + 6)
-            Qs = self.q_vals[state[0] - 1, state[1] - 1].copy()
+            state = (inputs['light'], inputs['oncoming'], inputs['left'], inputs['right'], col, row)
+            Qs = self.q_vals[state].copy()
             forbidden_move = self.heading_direction[(-heading[0], -heading[1])]
             del Qs[forbidden_move]
             maxQ = max(Qs.values())
@@ -344,6 +355,7 @@ class QTable(object):
             # print good_moves
             direction = random.choice(good_moves)
             new_heading = self.direction_heading[direction]
+
             if heading == new_heading:
                 action = 'forward'
             elif (-heading[1], heading[0]) == new_heading:

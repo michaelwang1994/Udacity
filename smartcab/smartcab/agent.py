@@ -28,29 +28,16 @@ class LearningAgent(Agent):
         inputs = self.env.sense(self)
         deadline = self.env.get_deadline(self)
         heading = self.env.agent_states[self]['heading']
-        loc_x, loc_y = self.env.agent_states[self]['location']
+        location = self.env.agent_states[self]['location']
 
-        # TODO: Select action according to your policy
-        action, new_heading = self.env.q_table.next_move(loc_y, loc_x, heading, epsilon = .0)
-
-        # TODO: Update state
-        action_okay = True
-        if action == 'right':
-            if inputs['light'] == 'red' and inputs['left'] == 'forward':
-                action_okay = False
-        elif action == 'forward':
-            if inputs['light'] == 'red':
-                action_okay = False
-        elif action == 'left':
-            if inputs['light'] == 'red' or (inputs['oncoming'] == 'forward' or inputs['oncoming'] == 'right'):
-                action_okay = False
-
-        if not action_okay:
-            action = None
+        # TODO: Select action according to
+        action, new_heading = self.env.q_table.next_move(location, inputs, heading, epsilon = .00)
 
         # TODO: Learn policy based on state, action, reward
         reward = self.env.act(self, action)
-        self.env.q_table.update(loc_y, loc_x, new_heading, reward, alpha = 0.1, gamma = 0.7)
+        inputs1 = self.env.sense(self)
+        self.env.q_table.update(location, inputs, inputs1, new_heading, reward, alpha = 0.25, gamma = 0.25)
+
 
         if action:
             self.state[0] += 1
@@ -67,7 +54,7 @@ def run():
     # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
     # Now simulate it
-    sim = Simulator(e, update_delay=0.0, display=False)  # create simulator (uses pygame when display=True, if available)
+    sim = Simulator(e, update_delay=0, display=False)  # create simulator (uses pygame when display=True, if available)
     # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
     sim.run(n_trials=100)  # run for a specified number of trials
