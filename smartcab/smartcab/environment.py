@@ -97,7 +97,7 @@ class Environment(object):
         start_heading = random.choice(self.valid_headings)
         deadline = self.compute_dist(start, destination) * 5
         self.total_deadline = deadline
-        print "Environment.reset(): Trial set up with start = {}, destination = {}, deadline = {}".format(start, destination, deadline)
+        # print "Environment.reset(): Trial set up with start = {}, destination = {}, deadline = {}".format(start, destination, deadline)
 
         # Initialize agent(s)
         for agent in self.agent_states.iterkeys():
@@ -109,7 +109,7 @@ class Environment(object):
             agent.reset(destination=(destination if agent is self.primary_agent else None))
 
     def step(self):
-        #print "Environment.step(): t = {}".format(self.t)  # [debug]
+        # print "Environment.step(): t = {}".format(self.t)  # [debug]
 
         # Update traffic lights
         for intersection, traffic_light in self.intersections.iteritems():
@@ -126,18 +126,18 @@ class Environment(object):
             agent_deadline = self.agent_states[self.primary_agent]['deadline']
             if agent_deadline <= self.hard_time_limit:
                 self.done = True
-                print "Environment.step(): Primary agent hit hard time limit ({})! Trial aborted.".format(self.hard_time_limit)
+                # print "Environment.step(): Primary agent hit hard time limit ({})! Trial aborted.".format(self.hard_time_limit)
                 self.score.append(0.0)
                 self.time_used.append(1.0)
-                print "success rate is: %s" % np.mean(self.score)
-                print "Average percent time used is: %s " % np.mean(self.time_used)
+                # print "success rate is: %s" % np.mean(self.score)
+                # print "Average percent time used is: %s " % np.mean(self.time_used)
             elif self.enforce_deadline and agent_deadline <= 0:
                 self.done = True
-                print "Environment.step(): Primary agent ran out of time! Trial aborted."
+                # print "Environment.step(): Primary agent ran out of time! Trial aborted."
                 self.score.append(0.0)
                 self.time_used.append(1.0)
-                print "success rate and is: %s" % np.mean(self.score)
-                print "Average percent time used is: %s" % np.mean(self.time_used)
+                # print "success rate and is: %s" % np.mean(self.score)
+                # print "Average percent time used is: %s" % np.mean(self.time_used)
             self.agent_states[self.primary_agent]['deadline'] = agent_deadline - 1
 
         self.t += 1
@@ -222,11 +222,11 @@ class Environment(object):
                 if state['deadline'] >= 0:
                     reward += 10  # bonus
                 self.done = True
-                print "Environment.act(): Primary agent has reached destination!"  # [debug]
+                # print "Environment.act(): Primary agent has reached destination!"  # [debug]
                 self.score.append(1.0)
                 self.time_used.append((self.t) / self.total_deadline)
-                print "success rate is: %s" % np.mean(self.score)
-                print "Average percent time used is: %s " % np.mean(self.time_used)
+                # print "success rate is: %s" % np.mean(self.score)
+                # print "Average percent time used is: %s " % np.mean(self.time_used)
             self.status_text = "state: {}\naction: {}\nreward: {}".format(agent.get_state(), action, reward)
             #print "Environment.act() [POST]: location: {}, heading: {}, action: {}, reward: {}".format(location, heading, action, reward)  # [debug]
 
@@ -318,6 +318,7 @@ class QTable(object):
         self.q_vals = self.q_vals_empty
 
     def update(self, location, inputs, inputs1, heading, reward, alpha = 0.8, gamma = 0.8):
+
         col = location[0] - self.env.agent_states[self.env.primary_agent]['destination'][0]
         row = location[1] - self.env.agent_states[self.env.primary_agent]['destination'][1]
 
@@ -326,9 +327,13 @@ class QTable(object):
 
         direction = self.heading_direction[heading]
         q_s_a = self.q_vals[state][direction]
+        # print self.q_vals[state]
+        # print direction
+        # print reward
         q_s1_a1 = self.q_vals[state1].values()
         q_s_a = alpha * (reward + gamma * max(q_s1_a1)) + (1 - alpha) * q_s_a
         self.q_vals[state][direction] = q_s_a
+        # print self.q_vals[state]
 
     def next_move(self, location, inputs, heading, epsilon = .05):
         col = location[0] - self.env.agent_states[self.env.primary_agent]['destination'][0]
@@ -352,7 +357,6 @@ class QTable(object):
             del Qs[forbidden_move]
             maxQ = max(Qs.values())
             good_moves = [m for m, v in Qs.items() if v == maxQ]
-            # print good_moves
             direction = random.choice(good_moves)
             new_heading = self.direction_heading[direction]
 
