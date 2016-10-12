@@ -36,6 +36,7 @@ class Environment(object):
         self.num_dummies = num_dummies  # no. of dummy agents
         self.score = []
         self.time_used = []
+        self.reward_list = []
         # Initialize simulation variables
         self.done = False
         self.t = 0
@@ -48,7 +49,6 @@ class Environment(object):
         self.block_size = 100
         self.intersections = OrderedDict()
         self.roads = []
-        self.q_table = QTable(self)
         for x in xrange(self.bounds[0], self.bounds[2] + 1):
             for y in xrange(self.bounds[1], self.bounds[3] + 1):
                 self.intersections[(x, y)] = TrafficLight()  # a traffic light at each intersection
@@ -229,7 +229,7 @@ class Environment(object):
                 # print "Average percent time used is: %s " % np.mean(self.time_used)
             self.status_text = "state: {}\naction: {}\nreward: {}".format(agent.get_state(), action, reward)
             #print "Environment.act() [POST]: location: {}, heading: {}, action: {}, reward: {}".format(location, heading, action, reward)  # [debug]
-
+        self.reward_list.append(reward)
         return reward
 
     def compute_dist(self, a, b):
@@ -288,82 +288,3 @@ class DummyAgent(Agent):
         reward = self.env.act(self, action)
         #print "DummyAgent.update(): t = {}, inputs = {}, action = {}, reward = {}".format(t, inputs, action, reward)  # [debug]
         #print "DummyAgent.update(): next_waypoint = {}".format(self.next_waypoint)  # [debug]
-
-class QTable(object):
-    def __init__(self, env):
-
-        self.env = env
-        self.lights = ['green', 'red']
-        self.oncoming = ['left', 'forward', 'right', None]
-        self.left = ['left', 'forward', 'right', None]
-        self.right = ['left', 'forward', 'right', None]
-        w, h = self.env.grid_size
-        self.col = np.arange(-w, w, 1)
-        self.row = np.arange(-h, h, 1)
-        self.heading_direction = {(1, 0): 'e', (0, 1): 's', (-1, 0): 'w', (0, -1): 'n'}
-        self.direction_heading = {'e': (1, 0), 's': (0, 1), 'w': (-1, 0), 'n': (0, -1)}
-
-
-        #TODO: {'light': light, 'oncoming': oncoming, 'left': left, 'right': right}
-        self.q_vals_empty = {}
-
-        for row in self.row:
-            for col in self.col:
-                for light in self.lights:
-                    for oncoming in self.oncoming:
-                        for left in self.left:
-                            for right in self.right:
-                                self.q_vals_empty[(light, oncoming, left, right, col, row)] = {'e': 0, 's': 0, 'w': 0, 'n': 0}
-
-        self.q_vals = self.q_vals_empty
-
-    def update(self, location, inputs, inputs1, heading, reward, alpha = 0.8, gamma = 0.8):
-
-        col = location[0] - self.env.agent_states[self.env.primary_agent]['destination'][0]
-        row = location[1] - self.env.agent_states[self.env.primary_agent]['destination'][1]
-
-        state = (inputs['light'], inputs['oncoming'], inputs['left'], inputs['right'], col, row)
-        state1 = (inputs1['light'], inputs1['oncoming'], inputs1['left'], inputs1['right'], col, row)
-
-        direction = self.heading_direction[heading]
-        q_s_a = self.q_vals[state][direction]
-        # print self.q_vals[state]
-        # print direction
-        # print reward
-        q_s1_a1 = self.q_vals[state1].values()
-        q_s_a = alpha * (reward + gamma * max(q_s1_a1)) + (1 - alpha) * q_s_a
-        self.q_vals[state][direction] = q_s_a
-        # print self.q_vals[state]
-
-    def next_move(self, location, inputs, heading, epsilon = .05):
-        col = location[0] - self.env.agent_states[self.env.primary_agent]['destination'][0]
-        row = location[1] - self.env.agent_states[self.env.primary_agent]['destination'][1]
-
-        if random.random() < epsilon:
-            direction = random.choice(['e', 's', 'w', 'n'])
-            new_heading = self.direction_heading[direction]
-            if heading == new_heading:
-                action = 'forward'
-            elif (-heading[1], heading[0]) == new_heading:
-                action = 'right'
-            else:
-                action = 'left'
-            return (action, new_heading)
-
-        else:
-            state = (inputs['light'], inputs['oncoming'], inputs['left'], inputs['right'], col, row)
-            Qs = self.q_vals[state].copy()
-            forbidden_move = self.heading_direction[(-heading[0], -heading[1])]
-            del Qs[forbidden_move]
-            maxQ = max(Qs.values())
-            good_moves = [m for m, v in Qs.items() if v == maxQ]
-            direction = random.choice(good_moves)
-            new_heading = self.direction_heading[direction]
-
-            if heading == new_heading:
-                action = 'forward'
-            elif (-heading[1], heading[0]) == new_heading:
-                action = 'right'
-            else:
-                action = 'left'
-            return (action, new_heading)

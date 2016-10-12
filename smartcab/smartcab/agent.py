@@ -4,6 +4,54 @@ from environment import Agent, Environment
 from planner import RoutePlanner
 from simulator import Simulator
 
+class QTable(object):
+    def __init__(self, env):
+
+        self.env = env
+        self.lights = ['green', 'red']
+        self.oncoming = ['left', 'forward', 'right', None]
+        self.left = ['left', 'forward', 'right', None]
+        self.right = ['left', 'forward', 'right', None]
+        self.next_waypoint = ['left', 'forward', 'right']
+
+        #TODO: {'light': light, 'oncoming': oncoming, 'left': left, 'right': right}
+        self.q_vals_empty = {}
+
+        for light in self.lights:
+            for oncoming in self.oncoming:
+                for left in self.left:
+                    for right in self.right:
+                        for next_waypoint in self.next_waypoint:
+                            self.q_vals_empty[(light, oncoming, left, right, next_waypoint)] = {'left': 0, 'forward': 0, 'right': 0, None: 0}
+
+        self.q_vals = self.q_vals_empty
+
+    def update(self, state, state1, action, reward, alpha = 0.8, gamma = 0.8):
+
+        q_s_a = self.q_vals[state][action]
+        # print self.q_vals[state]
+        # print direction
+        # print reward
+        q_s1_a1 = self.q_vals[state1].values()
+        q_s_a = alpha * (reward + gamma * max(q_s1_a1)) + (1 - alpha) * q_s_a
+        self.q_vals[state][action] = q_s_a
+        # print self.q_vals[state]
+
+    def next_move(self, state, epsilon = .05):
+
+        if random.random() < epsilon:
+            action = random.choice(['left', 'forward', 'right', None])
+
+            return action
+
+        else:
+            Qs = self.q_vals[state].copy()
+            maxQ = max(Qs.values())
+            good_moves = [m for m, v in Qs.items() if v == maxQ]
+            action = random.choice(good_moves)
+
+            return action
+
 class LearningAgent(Agent):
     """An agent that learns to drive in the smartcab world."""
 
@@ -14,46 +62,51 @@ class LearningAgent(Agent):
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
-
+        self.q_table= QTable(env)
         # TODO: Initialize any additional variables here
         self.next_waypoint = None
-        self.state = [0, 0]
+        self.next_waypoint1 = None
+        self.state = None
+        self.state1 = None
+
     def reset(self, destination=None):
         self.planner.route_to(destination)
         # TODO: Prepare for a new trip; reset any variables here, if required
         self.next_waypoint = None
         self.state = [0, 0]
+        self.q_table.q_vals = self.q_table.q_vals_empty
 
-        self.env.q_table.q_vals = self.env.q_table.q_vals_empty
     def update(self, t):
         # Gather inputs
 
         self.next_waypoint = self.planner.next_waypoint()  # from route planner, also displayed by simulator
         inputs = self.env.sense(self)
         deadline = self.env.get_deadline(self)
-        heading = self.env.agent_states[self]['heading']
-        location = self.env.agent_states[self]['location']
 
-        # TODO: Select action according to
-        action, new_heading = self.env.q_table.next_move(location, inputs, heading, epsilon = self.epsilon)
+        self.state = (inputs['light'], inputs['oncoming'], inputs['left'], inputs['right'], self.next_waypoint)
+        # TODO: Select action according to {'light': light, 'oncoming': oncoming, 'left': left, 'right': right}
+        action = self.q_table.next_move(self.state, epsilon = self.epsilon)
 
         # TODO: Learn policy based on state, action, reward
         reward = self.env.act(self, action)
+
         inputs1 = self.env.sense(self)
-        self.env.q_table.update(location, inputs, inputs1, new_heading, reward, alpha = self.alpha, gamma = self.gamma)
+        self.next_waypoint1 = self.planner.next_waypoint()
+        self.state1 = (inputs1['light'], inputs1['oncoming'], inputs1['left'], inputs1['right'], self.next_waypoint1)
+        self.q_table.update(self.state, self.state1, action, reward, alpha = self.alpha, gamma = self.gamma)
 
-
-        if action:
-            self.state[0] += 1
-            self.state[1] += reward
         # print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
 
 def run():
     """Run the agent for a finite number of trials."""
-    alpha_range = np.arange(0.4, 0.5, 0.1)
-    gamma_range = np.arange(0.45, 0.6, 0.1)
+    alpha_range = np.arange(0.0, 1, 0.2)
+    gamma_range = np.arange(0.0, 1, 0.2)
     epsilon_range = np.arange(0.0, 0.011, 0.01)
 
+    full_scores = []
+    full_times = []
+    full_rewards = []
+    settings_list = []
     for alpha in alpha_range:
         for gamma in gamma_range:
             for epsilon in epsilon_range:
@@ -70,9 +123,10 @@ def run():
 
                 sim.run(n_trials=100)  # run for a specified number of trials
                 # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
-                print "alpha: %s, gamma: %s, epsilon: %s" % (alpha, gamma, epsilon)
-                print np.mean(e.score)
-                print np.mean(e.time_used)
-
+                settings_list.append([(alpha, gamma, epsilon)])
+                full_scores.append(np.mean(e.score))
+                full_times.append(np.mean(e.time_used))
+                full_rewards.append(np.mean(e.reward_list))
+    print np.mean(full_scores), np.max(full_scores), np.mean(full_rewards), np.max(full_rewards)
 if __name__ == '__main__':
     run()
