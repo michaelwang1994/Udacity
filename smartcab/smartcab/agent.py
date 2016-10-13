@@ -4,7 +4,7 @@ from environment import Agent, Environment
 from planner import RoutePlanner
 from simulator import Simulator
 import itertools
-
+import pandas as pd
 
 class QTable(object):
     def __init__(self, env):
@@ -26,10 +26,10 @@ class QTable(object):
     def update(self, state, state1, action, reward, alpha = 0.8, gamma = 0.8):
         q_s_a = self.q_vals[state][action]
         q_s1_a1 = self.q_vals[state1].values()
-        q_s_a = alpha * (reward + gamma * max(q_s1_a1)) + (1 - alpha) * q_s_a
+        q_s_a = (1.0 - alpha) * q_s_a + alpha * (reward + gamma * max(q_s1_a1))
         self.q_vals[state][action] = q_s_a
 
-    def next_move(self, state, epsilon = .05):
+    def next_move(self, state, epsilon):
 
         if random.random() < epsilon:
             action = random.choice(['left', 'forward', 'right', None])
@@ -77,7 +77,7 @@ class LearningAgent(Agent):
 
         self.state = (inputs['light'], inputs['oncoming'], inputs['left'], inputs['right'], self.next_waypoint)
         # TODO: Select action according to {'light': light, 'oncoming': oncoming, 'left': left, 'right': right}
-        action = self.q_table.next_move(self.state, epsilon = self.epsilon)
+        action = self.q_table.next_move(self.state, self.epsilon)
         # TODO: Learn policy based on state, action, reward
         reward = self.env.act(self, action)
         inputs1 = self.env.sense(self)
@@ -88,16 +88,20 @@ class LearningAgent(Agent):
 
 def run():
     """Run the agent for a finite number of trials."""
-    alpha_range = np.arange(0.6, 0.71, 0.1)
-    gamma_range = np.arange(0.6, 0.71, 0.1)
+    alpha_range = np.arange(0.0, 1, 0.1)
+    gamma_range = np.arange(0.0, 1, 0.1)
     epsilon_range = np.arange(0.0, 0.051, 0.01)
 
-    full_scores = []
-    full_times = []
-    full_rewards = []
-    settings_list = []
+    df_heatmap = pd.DataFrame(index = alpha_range, columns = gamma_range)
+    idx = pd.IndexSlice
+
     for alpha in alpha_range:
         for gamma in gamma_range:
+
+            full_scores = []
+            full_times = []
+            full_rewards = []
+
             for epsilon in epsilon_range:
 
             # Set up environment and agent
@@ -107,17 +111,16 @@ def run():
                 # NOTE: You can set enforce_deadline=False while debugging to allow longer trials
 
                 # Now simulate it
-                sim = Simulator(e, update_delay=0, display=False)  # create simulator (uses pygame when display=True, if available)
+                sim = Simulator(e, update_delay=0.5, display=True)  # create simulator (uses pygame when display=True, if available)
                 # NOTE: To speed up simulation, reduce update_delay and/or set display=False
 
                 sim.run(n_trials=100)  # run for a specified number of trials
                 # NOTE: To quit midway, press Esc or close pygame window, or hit Ctrl+C on the command-line
-                settings_list.append([(alpha, gamma, epsilon)])
                 full_scores.append(np.mean(e.score))
                 full_times.append(np.mean(e.time_used))
                 full_rewards.append(np.mean(e.reward_list))
-    print np.mean(full_scores), np.max(full_scores), np.mean(full_rewards), np.max(full_rewards)
-    print np.mean(full_times), np.min(full_times)
-    print settings_list[full_rewards.index(np.max(full_rewards))]
+            df_heatmap.loc[idx[alpha], idx[gamma]] = np.mean(full_scores)
+
+    print df_heatmap
 if __name__ == '__main__':
     run()
