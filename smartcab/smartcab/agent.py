@@ -3,6 +3,8 @@ import numpy as np
 from environment import Agent, Environment
 from planner import RoutePlanner
 from simulator import Simulator
+import itertools
+
 
 class QTable(object):
     def __init__(self, env):
@@ -17,25 +19,15 @@ class QTable(object):
         #TODO: {'light': light, 'oncoming': oncoming, 'left': left, 'right': right}
         self.q_vals_empty = {}
 
-        for light in self.lights:
-            for oncoming in self.oncoming:
-                for left in self.left:
-                    for right in self.right:
-                        for next_waypoint in self.next_waypoint:
-                            self.q_vals_empty[(light, oncoming, left, right, next_waypoint)] = {'left': 0, 'forward': 0, 'right': 0, None: 0}
-
+        for state in list(itertools.product(*[self.lights, self.oncoming, self.left,self.right, self.next_waypoint])):
+            self.q_vals_empty[state] = {'left': 0, 'forward': 0, 'right': 0, None: 0}
         self.q_vals = self.q_vals_empty
 
     def update(self, state, state1, action, reward, alpha = 0.8, gamma = 0.8):
-
         q_s_a = self.q_vals[state][action]
-        # print self.q_vals[state]
-        # print direction
-        # print reward
         q_s1_a1 = self.q_vals[state1].values()
         q_s_a = alpha * (reward + gamma * max(q_s1_a1)) + (1 - alpha) * q_s_a
         self.q_vals[state][action] = q_s_a
-        # print self.q_vals[state]
 
     def next_move(self, state, epsilon = .05):
 
@@ -86,22 +78,19 @@ class LearningAgent(Agent):
         self.state = (inputs['light'], inputs['oncoming'], inputs['left'], inputs['right'], self.next_waypoint)
         # TODO: Select action according to {'light': light, 'oncoming': oncoming, 'left': left, 'right': right}
         action = self.q_table.next_move(self.state, epsilon = self.epsilon)
-
         # TODO: Learn policy based on state, action, reward
         reward = self.env.act(self, action)
-
         inputs1 = self.env.sense(self)
         self.next_waypoint1 = self.planner.next_waypoint()
         self.state1 = (inputs1['light'], inputs1['oncoming'], inputs1['left'], inputs1['right'], self.next_waypoint1)
         self.q_table.update(self.state, self.state1, action, reward, alpha = self.alpha, gamma = self.gamma)
-
         # print "LearningAgent.update(): deadline = {}, inputs = {}, action = {}, reward = {}".format(deadline, inputs, action, reward)  # [debug]
 
 def run():
     """Run the agent for a finite number of trials."""
-    alpha_range = np.arange(0.0, 1, 0.2)
-    gamma_range = np.arange(0.0, 1, 0.2)
-    epsilon_range = np.arange(0.0, 0.011, 0.01)
+    alpha_range = np.arange(0.6, 0.71, 0.1)
+    gamma_range = np.arange(0.6, 0.71, 0.1)
+    epsilon_range = np.arange(0.0, 0.051, 0.01)
 
     full_scores = []
     full_times = []
@@ -128,5 +117,7 @@ def run():
                 full_times.append(np.mean(e.time_used))
                 full_rewards.append(np.mean(e.reward_list))
     print np.mean(full_scores), np.max(full_scores), np.mean(full_rewards), np.max(full_rewards)
+    print np.mean(full_times), np.min(full_times)
+    print settings_list[full_rewards.index(np.max(full_rewards))]
 if __name__ == '__main__':
     run()
